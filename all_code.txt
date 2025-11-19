@@ -131,6 +131,42 @@ public class CategoryController
 // ---- End of CategoryController.java ----
 
 
+// ---- Start of OrderController.java ----
+package com.shopease.backend.controller;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.shopease.backend.entity.Order;
+import com.shopease.backend.service.OrderService;
+
+@RestController
+@RequestMapping("/orders")
+public class OrderController 
+{
+	@Autowired
+	private OrderService orderService;
+	
+	@PostMapping("/place/{userId}")
+	public ResponseEntity<Order> placeOrder(@PathVariable Long userId)
+	{
+		Order order = orderService.placeOrder(userId);
+		
+		if(order == null)
+			return ResponseEntity.badRequest().build();
+		
+		return ResponseEntity.ok(order);
+		
+	}
+}
+
+// ---- End of OrderController.java ----
+
+
 // ---- Start of ProductController.java ----
 package com.shopease.backend.controller;
 
@@ -459,6 +495,114 @@ public class Category
 // ---- End of Category.java ----
 
 
+// ---- Start of Order.java ----
+package com.shopease.backend.entity;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
+
+@Entity
+@Table(name="orders")
+public class Order
+{
+	@Id
+	@GeneratedValue(strategy=GenerationType.IDENTITY)
+	private Long id;
+	
+	// User who placed the order
+	@ManyToOne
+	@JoinColumn(name="user_id")
+	private User user;
+	
+	// Order items
+	@OneToMany(mappedBy="order", cascade=CascadeType.ALL)
+	private List<OrderItem> items;
+	
+    private double totalAmount;
+
+    private String status; // PENDING, CONFIRMED, SHIPPED, DELIVERED
+
+    private LocalDateTime createdAt;
+    
+ // getters & setters
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+
+    public User getUser() { return user; }
+    public void setUser(User user) { this.user = user; }
+
+    public List<OrderItem> getItems() { return items; }
+    public void setItems(List<OrderItem> items) { this.items = items; }
+
+    public double getTotalAmount() { return totalAmount; }
+    public void setTotalAmount(double totalAmount) { this.totalAmount = totalAmount; }
+
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+}
+
+// ---- End of Order.java ----
+
+
+// ---- Start of OrderItem.java ----
+package com.shopease.backend.entity;
+
+import jakarta.persistence.*;
+
+@Entity
+@Table(name="order_items")
+public class OrderItem 
+{
+	@Id
+	@GeneratedValue(strategy=GenerationType.IDENTITY)
+	private Long id;
+	
+	// Order reference
+	@ManyToOne
+	@JoinColumn(name="order_id")
+	private Order order;
+	
+	// product ref
+	@ManyToOne
+	@JoinColumn(name="product_id")
+	private Product product;
+	
+	private int quantity;
+    private double price; // quantity * product price
+    
+    // getters & setters
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+
+    public Order getOrder() { return order; }
+    public void setOrder(Order order) { this.order = order; }
+
+    public Product getProduct() { return product; }
+    public void setProduct(Product product) { this.product = product; }
+
+    public int getQuantity() { return quantity; }
+    public void setQuantity(int quantity) { this.quantity = quantity; }
+
+    public double getPrice() { return price; }
+    public void setPrice(double price) { this.price = price; }
+}
+
+// ---- End of OrderItem.java ----
+
+
 // ---- Start of Product.java ----
 package com.shopease.backend.entity;
 
@@ -662,6 +806,31 @@ public interface CategoryRepository extends JpaRepository<Category,Long>
 }
 
 // ---- End of CategoryRepository.java ----
+
+
+// ---- Start of OrderItemRepository.java ----
+package com.shopease.backend.repository;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import com.shopease.backend.entity.OrderItem;
+
+public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
+
+}
+// ---- End of OrderItemRepository.java ----
+
+
+// ---- Start of OrderRepository.java ----
+package com.shopease.backend.repository;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import com.shopease.backend.entity.Order;
+
+public interface OrderRepository extends JpaRepository<Order, Long>
+{
+
+}
+// ---- End of OrderRepository.java ----
 
 
 // ---- Start of ProductRepository.java ----
@@ -872,6 +1041,99 @@ public class CategoryService
 }
 
 // ---- End of CategoryService.java ----
+
+
+// ---- Start of OrderService.java ----
+package com.shopease.backend.service;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+
+import com.shopease.backend.entity.Cart;
+import com.shopease.backend.entity.CartItem;
+import com.shopease.backend.entity.Order;
+import com.shopease.backend.entity.OrderItem;
+import com.shopease.backend.entity.User;
+import com.shopease.backend.repository.OrderItemRepository;
+import com.shopease.backend.repository.OrderRepository;
+import com.shopease.backend.repository.UserRepository;
+
+@Service
+public class OrderService 
+{
+    private OrderRepository orderRepository;
+    private OrderItemRepository orderItemRepository;
+    private CartService cartService;
+    private UserRepository userRepository;
+    
+	public OrderService(OrderRepository orderRepository,
+			OrderItemRepository orderItemRepository,
+			CartService cartService, 
+			UserRepository userRepository) 
+	{
+		this.orderRepository = orderRepository;
+		this.orderItemRepository = orderItemRepository;
+		this.cartService = cartService;
+		this.userRepository = userRepository;
+	}
+    
+	public Order placeOrder(Long userId) 
+	{
+		// Get user
+		User user = userRepository.findById(userId).orElse(null);
+		
+		if(user==null)
+			return null;
+		
+		Cart cart = cartService.getCartByUser(userId);
+		
+		if(cart.getCartItems().isEmpty())
+		{
+			return null;  // empty cart
+		}
+		
+		 // Create order
+		Order order = new Order();
+		order.setUser(user);
+		order.setCreatedAt(LocalDateTime.now());
+		order.setStatus("PENDING");
+		
+		List<OrderItem> orderItems = new ArrayList<>();
+		double total = 0;
+		
+		for (CartItem cartItem: cart.getCartItems())
+		{
+			OrderItem oi = new OrderItem();
+			oi.setOrder(order);
+			oi.setProduct(cartItem.getProduct());
+			oi.setQuantity(cartItem.getQuantity());
+			oi.setPrice(cartItem.getPrice());
+			
+			total += cartItem.getPrice();
+            orderItems.add(oi);
+		}
+		
+		order.setItems(orderItems);
+		order.setTotalAmount(total);
+		
+		// Save order and items
+		Order saveOrder = orderRepository.save(order);
+		
+		// clear cart
+		cart.getCartItems().clear();
+		cart.setTotalPrice(0);
+		 
+		return saveOrder;
+	}
+}
+
+
+
+
+// ---- End of OrderService.java ----
 
 
 // ---- Start of ProductService.java ----
