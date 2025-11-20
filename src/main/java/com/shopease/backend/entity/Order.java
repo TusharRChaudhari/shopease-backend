@@ -3,6 +3,8 @@ package com.shopease.backend.entity;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
+
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -28,6 +30,7 @@ public class Order
 	
 	// Order items
 	@OneToMany(mappedBy="order", cascade=CascadeType.ALL)
+	@JsonManagedReference
 	private List<OrderItem> items;
 	
     private double totalAmount;
