@@ -19,7 +19,6 @@ import com.shopease.backend.repository.UserRepository;
 public class OrderService 
 {
     private OrderRepository orderRepository;
-    private OrderItemRepository orderItemRepository;
     private CartService cartService;
     private UserRepository userRepository;
     
@@ -29,7 +28,6 @@ public class OrderService
 			UserRepository userRepository) 
 	{
 		this.orderRepository = orderRepository;
-		this.orderItemRepository = orderItemRepository;
 		this.cartService = cartService;
 		this.userRepository = userRepository;
 	}
@@ -82,6 +80,12 @@ public class OrderService
 		 
 		return saveOrder;
 	}
+	
+	public List<Order> getOrdersByUser(Long userId) 
+	{
+	    return orderRepository.findByUserId(userId);
+	}
+
 }
 
 

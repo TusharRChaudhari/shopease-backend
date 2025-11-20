@@ -134,8 +134,11 @@ public class CategoryController
 // ---- Start of OrderController.java ----
 package com.shopease.backend.controller;
 
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -161,6 +164,13 @@ public class OrderController
 		
 		return ResponseEntity.ok(order);
 		
+	}
+	
+	@GetMapping("/user/{userId}")
+	public ResponseEntity<List<Order>> getUserOrders(@PathVariable Long userId)
+	{
+		List<Order> orders = orderService.getOrdersByUser(userId);
+		return ResponseEntity.ok(orders);
 	}
 }
 
@@ -501,6 +511,8 @@ package com.shopease.backend.entity;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
+
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -526,6 +538,7 @@ public class Order
 	
 	// Order items
 	@OneToMany(mappedBy="order", cascade=CascadeType.ALL)
+	@JsonManagedReference
 	private List<OrderItem> items;
 	
     private double totalAmount;
@@ -560,7 +573,15 @@ public class Order
 // ---- Start of OrderItem.java ----
 package com.shopease.backend.entity;
 
-import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonBackReference;
+
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name="order_items")
@@ -573,6 +594,7 @@ public class OrderItem
 	// Order reference
 	@ManyToOne
 	@JoinColumn(name="order_id")
+	@JsonBackReference
 	private Order order;
 	
 	// product ref
@@ -823,11 +845,14 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
 // ---- Start of OrderRepository.java ----
 package com.shopease.backend.repository;
 
+import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
+
 import com.shopease.backend.entity.Order;
 
 public interface OrderRepository extends JpaRepository<Order, Long>
 {
+	List<Order> findByUserId(Long userId);
 
 }
 // ---- End of OrderRepository.java ----
@@ -1065,7 +1090,6 @@ import com.shopease.backend.repository.UserRepository;
 public class OrderService 
 {
     private OrderRepository orderRepository;
-    private OrderItemRepository orderItemRepository;
     private CartService cartService;
     private UserRepository userRepository;
     
@@ -1075,7 +1099,6 @@ public class OrderService
 			UserRepository userRepository) 
 	{
 		this.orderRepository = orderRepository;
-		this.orderItemRepository = orderItemRepository;
 		this.cartService = cartService;
 		this.userRepository = userRepository;
 	}
@@ -1128,6 +1151,12 @@ public class OrderService
 		 
 		return saveOrder;
 	}
+	
+	public List<Order> getOrdersByUser(Long userId) 
+	{
+	    return orderRepository.findByUserId(userId);
+	}
+
 }
 
 
