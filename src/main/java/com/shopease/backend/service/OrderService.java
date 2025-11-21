@@ -10,6 +10,7 @@ import com.shopease.backend.entity.Cart;
 import com.shopease.backend.entity.CartItem;
 import com.shopease.backend.entity.Order;
 import com.shopease.backend.entity.OrderItem;
+import com.shopease.backend.entity.OrderStatus;
 import com.shopease.backend.entity.User;
 import com.shopease.backend.repository.OrderItemRepository;
 import com.shopease.backend.repository.OrderRepository;
@@ -51,7 +52,7 @@ public class OrderService
 		Order order = new Order();
 		order.setUser(user);
 		order.setCreatedAt(LocalDateTime.now());
-		order.setStatus("PENDING");
+		order.setStatus(OrderStatus.PENDING);
 		
 		List<OrderItem> orderItems = new ArrayList<>();
 		double total = 0;
@@ -85,7 +86,27 @@ public class OrderService
 	{
 	    return orderRepository.findByUserId(userId);
 	}
-
+	
+	public Order getOrderById(Long orderId)
+	{
+		return orderRepository.findById(orderId).orElse(null);
+	}
+	
+	public Order cancelOrder(Long orderId)
+	{
+		Order order = orderRepository.findById(orderId).orElse(null);
+		
+		if(order == null)
+			return null;
+		
+		if(order.getStatus() != OrderStatus.PENDING)
+			return null;
+		
+		order.setStatus(OrderStatus.CANCELLED);
+		
+		return orderRepository.save(order);
+	}
+	
 }
 
 
