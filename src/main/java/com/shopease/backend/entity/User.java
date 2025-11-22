@@ -1,6 +1,15 @@
 package com.shopease.backend.entity;
 
-import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name="users")
@@ -8,22 +17,26 @@ public class User
 {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	private long id;
+	private Long id;
 	
 	private String name;
 	
 	@Column(unique=true,nullable=false)
 	private String email;
 	
+	// will store bcrypt hash; hide from JSON responses
+    @Column(nullable = false)
+    @JsonIgnore
 	private String password;
 	
-	private String role;//Admin or Customer
+    @Enumerated(EnumType.STRING)
+	private Role role;//Admin or Customer
 	
 	public User()
 	{
 	}
 
-	public User(String name, String email, String password, String role) 
+	public User(String name, String email, String password, Role role) 
 	{
 		this.name = name;
 		this.email = email;
@@ -63,11 +76,11 @@ public class User
 		this.password = password;
 	}
 
-	public String getRole() {
+	public Role getRole() {
 		return role;
 	}
 
-	public void setRole(String role) {
+	public void setRole(Role role) {
 		this.role = role;
 	}
 

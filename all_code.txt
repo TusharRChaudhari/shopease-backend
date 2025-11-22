@@ -17,6 +17,117 @@ public class ShopEaseBackendApplication {
 // ---- End of ShopEaseBackendApplication.java ----
 
 
+// ---- Start of AppConfig.java ----
+package com.shopease.backend.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+@Configuration
+public class AppConfig 
+{
+	@Bean
+	public PasswordEncoder passwordEncoder()
+	{
+		return new BCryptPasswordEncoder();
+	}
+}
+
+/*
+PasswordEncoder (BCrypt)
+What is it?
+
+It is a component that encrypts (hashes) passwords before storing them in the database.
+We never store plain passwords.
+*/
+
+/*
+Why BCrypt?
+BCrypt:
+
+Adds salt automatically 
+Slow hashing → prevents brute force attacks 
+Industry standard for authentication
+ */
+
+
+// ---- End of AppConfig.java ----
+
+
+// ---- Start of SecurityConfig.java ----
+package com.shopease.backend.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import com.shopease.backend.security.JwtAuthenticationFilter;
+
+@Configuration
+@EnableMethodSecurity
+public class SecurityConfig 
+{
+	private final JwtAuthenticationFilter jwtAuthFilter;
+	
+	public SecurityConfig(JwtAuthenticationFilter jwtAuthFilter) 
+	{
+        this.jwtAuthFilter = jwtAuthFilter;
+    }
+	
+	@Bean
+	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception
+	{
+		http.csrf(csrf -> csrf.disable());
+		
+		http.sessionManagement(session ->
+								session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+		
+		http.authorizeHttpRequests(auth -> auth
+				.requestMatchers("/auth/**").permitAll()
+				.anyRequest().authenticated());
+		
+		http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+		
+		return http.build();
+	}
+	
+	@Bean
+	public AuthenticationManager authenticationmanager(AuthenticationConfiguration config) throws Exception
+	{
+		return config.getAuthenticationManager();
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ---- End of SecurityConfig.java ----
+
+
 // ---- Start of CartController.java ----
 package com.shopease.backend.controller;
 
@@ -322,6 +433,107 @@ public class UserController
  */
 
 // ---- End of UserController.java ----
+
+
+// ---- Start of AuthenticationRequest.java ----
+package com.shopease.backend.dto;
+
+public class AuthenticationRequest 
+{
+	private String email;
+	private String password;
+	
+	public String getEmail() {
+		return email;
+	}
+	public void setEmail(String email) {
+		this.email = email;
+	}
+	public String getPassword() {
+		return password;
+	}
+	public void setPassword(String password) {
+		this.password = password;
+	}
+}
+
+/*
+>DTOs (Data Transfer Objects) are simple classes used ONLY to exchange data in APIs.
+>A Data Transfer Object is a design pattern that allows for the exchange of data 
+between software application subsystems or layers.
+*/
+// ---- End of AuthenticationRequest.java ----
+
+
+// ---- Start of AuthenticationResponse.java ----
+package com.shopease.backend.dto;
+
+public class AuthenticationResponse 
+{
+    private String token;
+    private String message;
+    
+	public AuthenticationResponse(String token, String message) 
+	{
+		this.token = token;
+		this.message = message;
+	}
+
+	public String getToken() {
+		return token;
+	}
+
+	public String getMessage() {
+		return message;
+	}
+    
+    
+}
+
+// ---- End of AuthenticationResponse.java ----
+
+
+// ---- Start of RegisterRequest.java ----
+package com.shopease.backend.dto;
+
+import com.shopease.backend.entity.Role;
+
+public class RegisterRequest
+{
+    private String name;
+    private String email;
+    private String password;
+    private Role role;
+    
+	public String getName() {
+		return name;
+	}
+	public void setName(String name) {
+		this.name = name;
+	}
+	public String getEmail() {
+		return email;
+	}
+	public void setEmail(String email) {
+		this.email = email;
+	}
+	public String getPassword() {
+		return password;
+	}
+	public void setPassword(String password) {
+		this.password = password;
+	}
+	public Role getRole() {
+		return role;
+	}
+	public void setRole(Role role) {
+		this.role = role;
+	}
+    
+    
+}
+
+// ---- End of RegisterRequest.java ----
 
 
 // ---- Start of Cart.java ----
@@ -745,10 +957,31 @@ public class Product
 // ---- End of Product.java ----
 
 
+// ---- Start of Role.java ----
+package com.shopease.backend.entity;
+
+public enum Role 
+{
+	ADMIN,
+	CUSTOMER
+}
+
+// ---- End of Role.java ----
+
+
 // ---- Start of User.java ----
 package com.shopease.backend.entity;
 
-import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name="users")
@@ -756,22 +989,26 @@ public class User
 {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	private long id;
+	private Long id;
 	
 	private String name;
 	
 	@Column(unique=true,nullable=false)
 	private String email;
 	
+	// will store bcrypt hash; hide from JSON responses
+    @Column(nullable = false)
+    @JsonIgnore
 	private String password;
 	
-	private String role;//Admin or Customer
+    @Enumerated(EnumType.STRING)
+	private Role role;//Admin or Customer
 	
 	public User()
 	{
 	}
 
-	public User(String name, String email, String password, String role) 
+	public User(String name, String email, String password, Role role) 
 	{
 		this.name = name;
 		this.email = email;
@@ -811,11 +1048,11 @@ public class User
 		this.password = password;
 	}
 
-	public String getRole() {
+	public Role getRole() {
 		return role;
 	}
 
-	public void setRole(String role) {
+	public void setRole(Role role) {
 		this.role = role;
 	}
 
@@ -932,6 +1169,297 @@ public interface UserRepository extends JpaRepository<User,Long>
  * manually, Spring JPA lets you access data using methods.
  */
 // ---- End of UserRepository.java ----
+
+
+// ---- Start of CustomUserDetailsService.java ----
+package com.shopease.backend.security;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.stereotype.Service;
+
+import com.shopease.backend.entity.User;
+import com.shopease.backend.repository.UserRepository;
+
+@Service
+public class CustomUserDetailsService implements UserDetailsService
+{
+	@Autowired
+	private UserRepository userRepository;
+	
+	/*This method is called automatically during login process.
+	This converts your own User entity into a Spring Security UserDetails object.
+	It maps your custom user → spring security user.
+	& return a Spring Security UserDetails object. */
+	
+	@Override
+	public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException 
+	{
+		User user = userRepository.findByEmail(email);
+		
+		if (user==null)
+			throw new UsernameNotFoundException("User not found: " + email);
+		
+		return org.springframework.security.core.userdetails.User
+				.withUsername(user.getEmail())
+				.password(user.getPassword())
+				.roles(user.getRole().name())
+				.build();
+	}
+	
+}
+
+// ---- End of CustomUserDetailsService.java ----
+
+
+// ---- Start of JwtAuthenticationFilter.java ----
+package com.shopease.backend.security;
+
+import java.io.IOException;
+
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
+@Component
+public class JwtAuthenticationFilter extends OncePerRequestFilter
+{
+	private final JwtService jwtService;
+    private final CustomUserDetailsService userDetailsService;
+
+    public JwtAuthenticationFilter(JwtService jwtService, CustomUserDetailsService userDetailsService) 
+    {
+        this.jwtService = jwtService;
+        this.userDetailsService = userDetailsService;
+    }
+    
+	@Override
+	protected void doFilterInternal(HttpServletRequest request,
+									HttpServletResponse response, 
+									FilterChain filterChain)
+			throws ServletException, IOException 
+	{
+		String authHeader = request.getHeader("Authorization");
+		
+		if (authHeader == null || !authHeader.startsWith("Bearer ")) 
+		{
+			filterChain.doFilter(request, response);
+			return;
+		}
+		
+		String jwt = authHeader.substring(7);
+		String email = jwtService.extractUsername(jwt);
+		
+		if (email != null && SecurityContextHolder.getContext().getAuthentication() == null)
+		{
+			UserDetails userDetails = userDetailsService.loadUserByUsername(email);
+			
+			if(jwtService.isTokenValid(jwt, userDetails))
+			{
+				UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(userDetails,null,userDetails.getAuthorities());
+				authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+				
+				SecurityContextHolder.getContext().setAuthentication(authToken);
+			}	
+		}
+		filterChain.doFilter(request, response);		
+	}
+	
+}
+/*
+User → POST /auth/login → gets JWT → stores in localStorage/postman
+
+Every future request:
+→ Authorization: Bearer <token>
+→ JWT Filter verifies token
+→ If valid → Spring Security allows request
+→ If invalid → Reject (401 Unauthorized) 
+*/
+
+// ---- End of JwtAuthenticationFilter.java ----
+
+
+// ---- Start of JwtService.java ----
+package com.shopease.backend.security;
+
+import java.security.Key;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Service;
+
+import com.shopease.backend.entity.User;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.security.Keys;
+
+@Service
+public class JwtService 
+{
+	@Value("${jwt.secret}")
+	private String secretKey;
+	
+	@Value("${jwt.expiration}")
+	private long jwtExpirationMs;
+	
+
+	/* 	JWT needs a cryptographic key to sign the token.
+		We convert your secret key text into a valid Key object. 	 */
+	private Key getSignInKey()
+	{
+		return Keys.hmacShaKeyFor(secretKey.getBytes());
+	}
+	
+	public String generateToken(User user)
+	{
+		Map<String,Object> claims = new HashMap<>();
+		claims.put("role", user.getRole().name());
+		
+		return Jwts.builder()
+				.setClaims(claims)
+				.setSubject(user.getEmail())
+				.setIssuedAt(new Date())
+				.setExpiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
+				.signWith(getSignInKey(),SignatureAlgorithm.HS256)
+				.compact();
+	}
+	
+	/*This verifies:
+		>Signature is correct
+		>Token is legitimate
+		>Not forged*/
+	public String extractUsername(String token)
+	{
+		return extractAllClaims(token).getSubject();
+	}
+	
+	public Claims extractAllClaims(String token)
+	{
+		return Jwts.parserBuilder()
+				.setSigningKey(getSignInKey())
+				.build()
+				.parseClaimsJws(token)
+				.getBody();
+	}
+	
+	// Validates: >Is token not expired? 
+	// >Does token belong to this user?
+	public boolean isTokenValid(String token, UserDetails  userDetails )
+	{
+		final String username = extractUsername(token);
+		return (username.equals(userDetails.getUsername())) &&
+				!isTokenExpired(token);
+	}
+
+	private boolean isTokenExpired(String token) 
+	{
+		return extractAllClaims(token).getExpiration().before(new Date());
+	}
+}
+/*
+This class handles creating and validating JWT tokens.
+
+public String generateToken(User user) {}
+This creates a token like this:-
+
+Header 
+{
+    "alg": "HS256"
+}
+
+Payload 
+{
+    "sub": "a@a.com",
+    "role": "CUSTOMER",
+    "iat": now,
+    "exp": 24hrs later
+}
+
+Signature 
+{
+    HMACSHA256(secret)
+}
+*/
+// ---- End of JwtService.java ----
+
+
+// ---- Start of AuthService.java ----
+package com.shopease.backend.service;
+
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+import com.shopease.backend.dto.AuthenticationRequest;
+import com.shopease.backend.dto.AuthenticationResponse;
+import com.shopease.backend.dto.RegisterRequest;
+import com.shopease.backend.entity.User;
+import com.shopease.backend.repository.UserRepository;
+import com.shopease.backend.security.JwtService;
+
+@Service
+public class AuthService 
+{
+	private UserRepository userRepository;
+    private PasswordEncoder passwordEncoder;
+    private JwtService jwtService;
+    
+	public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService) 
+	{
+		this.userRepository = userRepository;
+		this.passwordEncoder = passwordEncoder;
+		this.jwtService = jwtService;
+	}
+    
+    // Registration
+	public AuthenticationResponse register(RegisterRequest request)
+	{
+		User user = new User();
+		user.setName(request.getName());
+		user.setEmail(request.getEmail());
+		user.setPassword(passwordEncoder.encode(request.getPassword()));  // hash password
+		user.setRole(request.getRole());
+		
+		userRepository.save(user);
+		
+		String token = jwtService.generateToken(user);
+		
+		return new AuthenticationResponse(token, "User registered Successfully");
+	}
+	
+	// Login
+	public AuthenticationResponse login(AuthenticationRequest request)
+	{
+		User user = userRepository.findByEmail(request.getEmail());
+		
+		if (user == null)
+			return new AuthenticationResponse(null, "Invalid email");
+		
+		if (!passwordEncoder.matches(request.getPassword(), user.getPassword()))
+			return new AuthenticationResponse(null, "Invalid password");
+		
+		String token = jwtService.generateToken(user);
+		
+		return new AuthenticationResponse(token, "Login successfull");
+			
+	}
+}
+
+// ---- End of AuthService.java ----
 
 
 // ---- Start of CartService.java ----
