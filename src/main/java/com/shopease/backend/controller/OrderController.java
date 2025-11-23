@@ -2,7 +2,6 @@ package com.shopease.backend.controller;
 
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -12,19 +11,27 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.shopease.backend.entity.Order;
+import com.shopease.backend.security.AuthUtil;
 import com.shopease.backend.service.OrderService;
 
 @RestController
 @RequestMapping("/orders")
 public class OrderController 
 {
-	@Autowired
-	private OrderService orderService;
+	private final OrderService orderService;
+	private final AuthUtil authUtil;
 	
-	@PostMapping("/place/{userId}")
-	public ResponseEntity<Order> placeOrder(@PathVariable Long userId)
+	public OrderController(OrderService orderService,AuthUtil authUtil)
 	{
-		Order order = orderService.placeOrder(userId);
+		this.orderService = orderService;
+		this.authUtil = authUtil;
+	}
+	
+	@PostMapping("/place")
+	public ResponseEntity<Order> placeOrder()
+	{
+		String email = authUtil.getLoggedInEmail();
+		Order order = orderService.placeOrder(email);
 		
 		if(order == null)
 			return ResponseEntity.badRequest().build();
@@ -33,10 +40,11 @@ public class OrderController
 		
 	}
 	
-	@GetMapping("/user/{userId}")
-	public ResponseEntity<List<Order>> getUserOrders(@PathVariable Long userId)
+	@GetMapping
+	public ResponseEntity<List<Order>> getUserOrders()
 	{
-		List<Order> orders = orderService.getOrdersByUser(userId);
+		String email = authUtil.getLoggedInEmail();
+		List<Order> orders = orderService.getOrdersByUser(email);
 		return ResponseEntity.ok(orders);
 	}
 	

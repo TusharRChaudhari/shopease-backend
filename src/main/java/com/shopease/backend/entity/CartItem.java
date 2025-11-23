@@ -1,5 +1,7 @@
 package com.shopease.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.*;
 
 @Entity
@@ -12,6 +14,7 @@ public class CartItem
 	
 	@ManyToOne
 	@JoinColumn(name="cart_id")
+	@JsonIgnore
 	private Cart cart; // Each CartItem belongs to a Cart
 	
 	@ManyToOne

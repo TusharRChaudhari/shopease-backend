@@ -1,6 +1,5 @@
 package com.shopease.backend.controller;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -10,36 +9,37 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.shopease.backend.entity.Cart;
+import com.shopease.backend.security.AuthUtil;
 import com.shopease.backend.service.CartService;
 
 @RestController
 @RequestMapping("/cart")
 public class CartController
 {
-	@Autowired
-	private CartService cartService;
+    private final CartService cartService;
+    private final AuthUtil authUtil;
+
+    public CartController(CartService cartService, AuthUtil authUtil)
+    {
+        this.cartService = cartService;
+		this.authUtil = authUtil;
+    }
 	
 	// Get cart for user
-	@GetMapping("/{userId}")
+	@GetMapping
 	public ResponseEntity<Cart> getCart(@PathVariable Long userId)
 	{
-		Cart cart = cartService.getCartByUser(userId);
-		
-		if(cart == null)
-			return ResponseEntity.notFound().build();
-		
-		return ResponseEntity.ok(cart);
+		return ResponseEntity.ok(cartService.getCart());
 	}
 	
 	// Add product to cart
-    @PostMapping("/{userId}/add/{productId}/{quantity}")
+    @PostMapping("/add/{productId}/{quantity}")
     public ResponseEntity<Cart> addProductToCart(
-    		@PathVariable Long userId,
     		@PathVariable Long productId,
-    		@PathVariable int quantity
-    		)
+    		@PathVariable int quantity)
     {
-    	Cart cart = cartService.addProductToCart(userId, productId, quantity);
+    	String email = authUtil.getLoggedInEmail();
+    	Cart cart = cartService.addProductToCart(email, productId, quantity);
     	
     	if(cart==null)
     		return ResponseEntity.notFound().build();
@@ -48,12 +48,11 @@ public class CartController
     }
     
     // Remove cart item
-    @DeleteMapping("/{userId}/remove/{cartItemId}")
+    @DeleteMapping("/remove/{cartItemId}")
     public ResponseEntity<Cart> removeItem(
-    		@PathVariable Long userId,
     		@PathVariable Long cartItemId)
     {
-    	Cart cart = cartService.removeItemFromCart(userId, cartItemId);
+    	Cart cart = cartService.removeItemFromCart(cartItemId);
     	return ResponseEntity.ok(cart);
     }
 }

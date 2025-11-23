@@ -5,5 +5,5 @@ import com.shopease.backend.entity.CartItem;
 
 public interface CartItemRepository  extends JpaRepository<CartItem, Long>
 {
-	
+	CartItem findByCartIdAndProductId(Long cartId, Long productId);
 }

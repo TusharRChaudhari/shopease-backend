@@ -12,36 +12,35 @@ import com.shopease.backend.entity.Order;
 import com.shopease.backend.entity.OrderItem;
 import com.shopease.backend.entity.OrderStatus;
 import com.shopease.backend.entity.User;
-import com.shopease.backend.repository.OrderItemRepository;
+import com.shopease.backend.repository.CartRepository;
 import com.shopease.backend.repository.OrderRepository;
 import com.shopease.backend.repository.UserRepository;
 
 @Service
 public class OrderService 
 {
-    private OrderRepository orderRepository;
-    private CartService cartService;
-    private UserRepository userRepository;
+    private final OrderRepository orderRepository;
+    private final CartRepository cartRepository;
+    private final UserRepository userRepository;
     
 	public OrderService(OrderRepository orderRepository,
-			OrderItemRepository orderItemRepository,
-			CartService cartService, 
+			CartRepository cartRepository, 
 			UserRepository userRepository) 
 	{
 		this.orderRepository = orderRepository;
-		this.cartService = cartService;
+		this.cartRepository = cartRepository;
 		this.userRepository = userRepository;
 	}
     
-	public Order placeOrder(Long userId) 
+	public Order placeOrder(String email) 
 	{
 		// Get user
-		User user = userRepository.findById(userId).orElse(null);
+		User user = userRepository.findByEmail(email);
 		
 		if(user==null)
 			return null;
 		
-		Cart cart = cartService.getCartByUser(userId);
+		Cart cart = cartRepository.findByUser(user);
 		
 		if(cart.getCartItems().isEmpty())
 		{
@@ -78,14 +77,20 @@ public class OrderService
 		// clear cart
 		cart.getCartItems().clear();
 		cart.setTotalPrice(0);
-		 
+		cartRepository.save(cart);
+		
 		return saveOrder;
 	}
 	
-	public List<Order> getOrdersByUser(Long userId) 
+	public List<Order> getOrdersByUser(String email) 
 	{
-	    return orderRepository.findByUserId(userId);
+	    User user = userRepository.findByEmail(email);
+	    if (user == null)
+	        return null;
+
+	    return orderRepository.findByUserId(user.getId());
 	}
+
 	
 	public Order getOrderById(Long orderId)
 	{

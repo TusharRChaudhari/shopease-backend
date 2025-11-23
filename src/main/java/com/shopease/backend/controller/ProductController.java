@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,6 +26,7 @@ public class ProductController
 	
 	// Add Product
 	@PostMapping
+	@PreAuthorize("hasRole('ADMIN')")
 	public ResponseEntity<Product> addProduct(@RequestBody Product product)
 	{
 		Product saved = productService.addProduct(product);
@@ -52,6 +54,7 @@ public class ProductController
 	
 	// Update Product By ID
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Product> updateProduct(@PathVariable Long id,@RequestBody Product updatedProduct) 
     {
         Product product = productService.updateProduct(id, updatedProduct);
@@ -63,6 +66,7 @@ public class ProductController
     
 	// Delete Product
 	@DeleteMapping("/{id}")
+	@PreAuthorize("hasRole('ADMIN')")
 	public ResponseEntity<String> deleteProduct(@PathVariable Long id)
 	{
 		productService.deleteProduct(id);
