@@ -32,8 +32,18 @@ public class SecurityConfig
 								session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 		
 		http.authorizeHttpRequests(auth -> auth
-				.requestMatchers("/auth/**").permitAll()
-				.anyRequest().authenticated());
+				// Public endpoints (login, register)
+		        .requestMatchers("/auth/**").permitAll()
+
+		        // ADMIN ONLY
+		        .requestMatchers("/products/**").hasRole("ADMIN")
+		        .requestMatchers("/api/categories/**").hasRole("ADMIN")
+
+		        // Customer OR Admin
+		        .requestMatchers("/cart/**", "/orders/**").hasAnyRole("CUSTOMER", "ADMIN")
+
+		        // Everything else must be authenticated
+		        .anyRequest().authenticated());
 		
 		http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 		

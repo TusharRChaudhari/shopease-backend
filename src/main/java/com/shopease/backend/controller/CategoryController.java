@@ -3,6 +3,7 @@ package com.shopease.backend.controller;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -21,6 +22,7 @@ public class CategoryController
 	
 	// Create Category
 	@PostMapping
+	@PreAuthorize("hasRole('ADMIN')")
 	public Category createCategory(@RequestBody Category category)
 	{
 		return categoryService.createCategory(category);

@@ -91,8 +91,18 @@ public class SecurityConfig
 								session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 		
 		http.authorizeHttpRequests(auth -> auth
-				.requestMatchers("/auth/**").permitAll()
-				.anyRequest().authenticated());
+				// Public endpoints (login, register)
+		        .requestMatchers("/auth/**").permitAll()
+
+		        // ADMIN ONLY
+		        .requestMatchers("/products/**").hasRole("ADMIN")
+		        .requestMatchers("/api/categories/**").hasRole("ADMIN")
+
+		        // Customer OR Admin
+		        .requestMatchers("/cart/**", "/orders/**").hasAnyRole("CUSTOMER", "ADMIN")
+
+		        // Everything else must be authenticated
+		        .anyRequest().authenticated());
 		
 		http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 		
@@ -128,10 +138,52 @@ public class SecurityConfig
 // ---- End of SecurityConfig.java ----
 
 
+// ---- Start of AuthController.java ----
+package com.shopease.backend.controller;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.shopease.backend.dto.AuthenticationRequest;
+import com.shopease.backend.dto.AuthenticationResponse;
+import com.shopease.backend.dto.RegisterRequest;
+import com.shopease.backend.service.AuthService;
+
+@RestController
+@RequestMapping("/auth")
+public class AuthController 
+{
+	private final AuthService authService;
+
+	public AuthController(AuthService authService) 
+	{
+		this.authService = authService;
+	}
+	
+	// REGISTER
+	@PostMapping("/register")
+	public ResponseEntity<AuthenticationResponse> register(@RequestBody  RegisterRequest request)
+	{
+		return ResponseEntity.ok(authService.register(request));
+	}
+	
+	 // LOGIN
+	@PostMapping("/login")
+	public ResponseEntity<AuthenticationResponse> login(@RequestBody AuthenticationRequest request)
+	{
+		return ResponseEntity.ok(authService.login(request));
+	}
+}
+
+// ---- End of AuthController.java ----
+
+
 // ---- Start of CartController.java ----
 package com.shopease.backend.controller;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -141,36 +193,37 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.shopease.backend.entity.Cart;
+import com.shopease.backend.security.AuthUtil;
 import com.shopease.backend.service.CartService;
 
 @RestController
 @RequestMapping("/cart")
 public class CartController
 {
-	@Autowired
-	private CartService cartService;
+    private final CartService cartService;
+    private final AuthUtil authUtil;
+
+    public CartController(CartService cartService, AuthUtil authUtil)
+    {
+        this.cartService = cartService;
+		this.authUtil = authUtil;
+    }
 	
 	// Get cart for user
-	@GetMapping("/{userId}")
+	@GetMapping
 	public ResponseEntity<Cart> getCart(@PathVariable Long userId)
 	{
-		Cart cart = cartService.getCartByUser(userId);
-		
-		if(cart == null)
-			return ResponseEntity.notFound().build();
-		
-		return ResponseEntity.ok(cart);
+		return ResponseEntity.ok(cartService.getCart());
 	}
 	
 	// Add product to cart
-    @PostMapping("/{userId}/add/{productId}/{quantity}")
+    @PostMapping("/add/{productId}/{quantity}")
     public ResponseEntity<Cart> addProductToCart(
-    		@PathVariable Long userId,
     		@PathVariable Long productId,
-    		@PathVariable int quantity
-    		)
+    		@PathVariable int quantity)
     {
-    	Cart cart = cartService.addProductToCart(userId, productId, quantity);
+    	String email = authUtil.getLoggedInEmail();
+    	Cart cart = cartService.addProductToCart(email, productId, quantity);
     	
     	if(cart==null)
     		return ResponseEntity.notFound().build();
@@ -179,12 +232,11 @@ public class CartController
     }
     
     // Remove cart item
-    @DeleteMapping("/{userId}/remove/{cartItemId}")
+    @DeleteMapping("/remove/{cartItemId}")
     public ResponseEntity<Cart> removeItem(
-    		@PathVariable Long userId,
     		@PathVariable Long cartItemId)
     {
-    	Cart cart = cartService.removeItemFromCart(userId, cartItemId);
+    	Cart cart = cartService.removeItemFromCart(cartItemId);
     	return ResponseEntity.ok(cart);
     }
 }
@@ -208,6 +260,7 @@ package com.shopease.backend.controller;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -226,6 +279,7 @@ public class CategoryController
 	
 	// Create Category
 	@PostMapping
+	@PreAuthorize("hasRole('ADMIN')")
 	public Category createCategory(@RequestBody Category category)
 	{
 		return categoryService.createCategory(category);
@@ -247,7 +301,6 @@ package com.shopease.backend.controller;
 
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -257,19 +310,27 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.shopease.backend.entity.Order;
+import com.shopease.backend.security.AuthUtil;
 import com.shopease.backend.service.OrderService;
 
 @RestController
 @RequestMapping("/orders")
 public class OrderController 
 {
-	@Autowired
-	private OrderService orderService;
+	private final OrderService orderService;
+	private final AuthUtil authUtil;
 	
-	@PostMapping("/place/{userId}")
-	public ResponseEntity<Order> placeOrder(@PathVariable Long userId)
+	public OrderController(OrderService orderService,AuthUtil authUtil)
 	{
-		Order order = orderService.placeOrder(userId);
+		this.orderService = orderService;
+		this.authUtil = authUtil;
+	}
+	
+	@PostMapping("/place")
+	public ResponseEntity<Order> placeOrder()
+	{
+		String email = authUtil.getLoggedInEmail();
+		Order order = orderService.placeOrder(email);
 		
 		if(order == null)
 			return ResponseEntity.badRequest().build();
@@ -278,10 +339,11 @@ public class OrderController
 		
 	}
 	
-	@GetMapping("/user/{userId}")
-	public ResponseEntity<List<Order>> getUserOrders(@PathVariable Long userId)
+	@GetMapping
+	public ResponseEntity<List<Order>> getUserOrders()
 	{
-		List<Order> orders = orderService.getOrdersByUser(userId);
+		String email = authUtil.getLoggedInEmail();
+		List<Order> orders = orderService.getOrdersByUser(email);
 		return ResponseEntity.ok(orders);
 	}
 	
@@ -318,6 +380,7 @@ import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -339,6 +402,7 @@ public class ProductController
 	
 	// Add Product
 	@PostMapping
+	@PreAuthorize("hasRole('ADMIN')")
 	public ResponseEntity<Product> addProduct(@RequestBody Product product)
 	{
 		Product saved = productService.addProduct(product);
@@ -366,6 +430,7 @@ public class ProductController
 	
 	// Update Product By ID
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Product> updateProduct(@PathVariable Long id,@RequestBody Product updatedProduct) 
     {
         Product product = productService.updateProduct(id, updatedProduct);
@@ -377,6 +442,7 @@ public class ProductController
     
 	// Delete Product
 	@DeleteMapping("/{id}")
+	@PreAuthorize("hasRole('ADMIN')")
 	public ResponseEntity<String> deleteProduct(@PathVariable Long id)
 	{
 		productService.deleteProduct(id);
@@ -610,6 +676,8 @@ public class Cart
 // ---- Start of CartItem.java ----
 package com.shopease.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.*;
 
 @Entity
@@ -622,6 +690,7 @@ public class CartItem
 	
 	@ManyToOne
 	@JoinColumn(name="cart_id")
+	@JsonIgnore
 	private Cart cart; // Each CartItem belongs to a Cart
 	
 	@ManyToOne
@@ -879,7 +948,15 @@ public enum OrderStatus
 // ---- Start of Product.java ----
 package com.shopease.backend.entity;
 
-import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name="products")
@@ -897,6 +974,7 @@ public class Product
 	
 	@ManyToOne
 	@JoinColumn(name="category_id")
+	@JsonIgnore
 	private Category category;
 	
 	public Product()
@@ -1070,7 +1148,7 @@ import com.shopease.backend.entity.CartItem;
 
 public interface CartItemRepository  extends JpaRepository<CartItem, Long>
 {
-	
+	CartItem findByCartIdAndProductId(Long cartId, Long productId);
 }
 
 // ---- End of CartItemRepository.java ----
@@ -1169,6 +1247,33 @@ public interface UserRepository extends JpaRepository<User,Long>
  * manually, Spring JPA lets you access data using methods.
  */
 // ---- End of UserRepository.java ----
+
+
+// ---- Start of AuthUtil.java ----
+package com.shopease.backend.security;
+
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
+
+@Component
+public class AuthUtil 
+{
+	public String getLoggedInEmail() 
+	{
+		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+		
+		if (auth == null) 
+			return null;
+		
+		return auth.getName(); // our username/email in UserDetails
+	}
+}
+/*
+This allows us to get the email of the logged-in user anywhere. Helper method to get logged in user
+
+*/
+// ---- End of AuthUtil.java ----
 
 
 // ---- Start of CustomUserDetailsService.java ----
@@ -1467,6 +1572,8 @@ package com.shopease.backend.service;
 
 import java.util.ArrayList;
 
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import com.shopease.backend.entity.Cart;
@@ -1479,122 +1586,99 @@ import com.shopease.backend.repository.ProductRepository;
 import com.shopease.backend.repository.UserRepository;
 
 @Service
-public class CartService 
-{
-	private final CartRepository cartRepository;
+public class CartService {
+
+    private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
-    
-	public CartService(
-			CartRepository cartRepository,
-			CartItemRepository cartItemRepository,
-			ProductRepository productRepository,
-			UserRepository userRepository
-			)
-	{
-		this.cartRepository = cartRepository;
-		this.cartItemRepository = cartItemRepository;
-		this.productRepository = productRepository;
-		this.userRepository = userRepository;
-	}
-	
-    // Utility method → calc total
-	private double calculateTotal(Cart cart)
-	{
-		return cart.getCartItems()
-				.stream()
-				.mapToDouble(CartItem::getPrice)
-				.sum();
-	}
-	
-	// 1 → Get cart of a user
-	public Cart getCartByUser(Long userId)
-	{
-		User user = userRepository.findById(userId).orElse(null);
-		
-		if(user == null)
-		{	return null;}
-		
-		Cart cart = cartRepository.findByUser(user);
-		// If cart does not exist → create empty cart
-		if (cart == null)
-		{
-			cart = new Cart();
-			cart.setUser(user);
-			cart.setCartItems(new ArrayList<>());
-			cart.setTotalPrice(0);
-			cart = cartRepository.save(cart);
-		}
-		return cart;		
-	}
-	
-	// 2 → Add product to cart
-	public Cart addProductToCart(Long userId,Long productId,int quantity)
-	{
-		Cart cart = getCartByUser(userId); //ensures cart exists
-		Product product = productRepository.findById(productId).orElse(null);
-		
-		if(product==null)
-			return null;
-		
-        // Create CartItem
-		CartItem item = new CartItem();
-		item.setCart(cart);
-		item.setProduct(product);
-		item.setQuantity(quantity);
-		item.setPrice(product.getPrice()*quantity);
-		
-		cart.getCartItems().add(item);
-		cartItemRepository.save(item);
-		
-		// Update total price
+
+    public CartService(
+            CartRepository cartRepository,
+            CartItemRepository cartItemRepository,
+            ProductRepository productRepository,
+            UserRepository userRepository
+    ) {
+        this.cartRepository = cartRepository;
+        this.cartItemRepository = cartItemRepository;
+        this.productRepository = productRepository;
+        this.userRepository = userRepository;
+    }
+
+    private User getLoggedInUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String email = auth.getName();
+        return userRepository.findByEmail(email);
+    }
+
+    private double calculateTotal(Cart cart) {
+        return cart.getCartItems()
+                .stream()
+                .mapToDouble(CartItem::getPrice)
+                .sum();
+    }
+
+    // Get cart of logged-in user
+    public Cart getCart() 
+    {
+        User user = getLoggedInUser();
+
+        Cart cart = cartRepository.findByUser(user);
+
+        if (cart == null) {
+            cart = new Cart();
+            cart.setUser(user);
+            cart.setCartItems(new ArrayList<>());
+            cart.setTotalPrice(0);
+            cart = cartRepository.save(cart);
+        }
+
+        return cart;
+    }
+
+    // Add or merge product
+    public Cart addProductToCart(String email, Long productId, int quantity) {
+        Cart cart = getCart();
+        Product product = productRepository.findById(productId).orElse(null);
+
+        if (product == null)
+            return null;
+
+        CartItem existing = cartItemRepository.findByCartIdAndProductId(cart.getId(), productId);
+
+        if (existing != null) {
+            existing.setQuantity(existing.getQuantity() + quantity);
+            existing.setPrice(existing.getQuantity() * product.getPrice());
+            cartItemRepository.save(existing);
+        } else {
+            CartItem item = new CartItem();
+            item.setCart(cart);
+            item.setProduct(product);
+            item.setQuantity(quantity);
+            item.setPrice(quantity * product.getPrice());
+            cartItemRepository.save(item);
+
+            cart.getCartItems().add(item);
+        }
+
         cart.setTotalPrice(calculateTotal(cart));
-        
-        return cartRepository.save(cart);		
-	}
-	
-    // 3 → Remove item from cart
-	public Cart removeItemFromCart(Long userId, Long cartItemId)
-	{
-		Cart cart = getCartByUser(userId);
-		
-		CartItem item = cartItemRepository.findById(cartItemId).orElse(null);
-		
-		if(item==null)
-			return cart;
-		
-		cart.getCartItems().remove(item);
-		cartItemRepository.delete(item);
-		
-		cart.setTotalPrice(calculateTotal(cart));
-		return cartRepository.save(cart);
-	}
-	
-	
+        return cartRepository.save(cart);
+    }
+
+    public Cart removeItemFromCart(Long cartItemId) {
+        Cart cart = getCart();
+        CartItem item = cartItemRepository.findById(cartItemId).orElse(null);
+
+        if (item == null)
+            return cart;
+
+        cart.getCartItems().remove(item);
+        cartItemRepository.delete(item);
+
+        cart.setTotalPrice(calculateTotal(cart));
+        return cartRepository.save(cart);
+    }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // ---- End of CartService.java ----
 
@@ -1650,36 +1734,35 @@ import com.shopease.backend.entity.Order;
 import com.shopease.backend.entity.OrderItem;
 import com.shopease.backend.entity.OrderStatus;
 import com.shopease.backend.entity.User;
-import com.shopease.backend.repository.OrderItemRepository;
+import com.shopease.backend.repository.CartRepository;
 import com.shopease.backend.repository.OrderRepository;
 import com.shopease.backend.repository.UserRepository;
 
 @Service
 public class OrderService 
 {
-    private OrderRepository orderRepository;
-    private CartService cartService;
-    private UserRepository userRepository;
+    private final OrderRepository orderRepository;
+    private final CartRepository cartRepository;
+    private final UserRepository userRepository;
     
 	public OrderService(OrderRepository orderRepository,
-			OrderItemRepository orderItemRepository,
-			CartService cartService, 
+			CartRepository cartRepository, 
 			UserRepository userRepository) 
 	{
 		this.orderRepository = orderRepository;
-		this.cartService = cartService;
+		this.cartRepository = cartRepository;
 		this.userRepository = userRepository;
 	}
     
-	public Order placeOrder(Long userId) 
+	public Order placeOrder(String email) 
 	{
 		// Get user
-		User user = userRepository.findById(userId).orElse(null);
+		User user = userRepository.findByEmail(email);
 		
 		if(user==null)
 			return null;
 		
-		Cart cart = cartService.getCartByUser(userId);
+		Cart cart = cartRepository.findByUser(user);
 		
 		if(cart.getCartItems().isEmpty())
 		{
@@ -1716,14 +1799,20 @@ public class OrderService
 		// clear cart
 		cart.getCartItems().clear();
 		cart.setTotalPrice(0);
-		 
+		cartRepository.save(cart);
+		
 		return saveOrder;
 	}
 	
-	public List<Order> getOrdersByUser(Long userId) 
+	public List<Order> getOrdersByUser(String email) 
 	{
-	    return orderRepository.findByUserId(userId);
+	    User user = userRepository.findByEmail(email);
+	    if (user == null)
+	        return null;
+
+	    return orderRepository.findByUserId(user.getId());
 	}
+
 	
 	public Order getOrderById(Long orderId)
 	{
