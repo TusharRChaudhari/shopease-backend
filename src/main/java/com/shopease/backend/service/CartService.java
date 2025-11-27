@@ -67,7 +67,7 @@ public class CartService {
     }
 
     // Add or merge product
-    public Cart addProductToCart(String email, Long productId, int quantity) {
+    public Cart addProductToCart(Long productId, int quantity) {
         Cart cart = getCart();
         Product product = productRepository.findById(productId).orElse(null);
 
