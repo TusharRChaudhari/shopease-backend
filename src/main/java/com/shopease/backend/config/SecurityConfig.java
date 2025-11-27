@@ -2,6 +2,7 @@ package com.shopease.backend.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -35,8 +36,11 @@ public class SecurityConfig
 				// Public endpoints (login, register)
 		        .requestMatchers("/auth/**").permitAll()
 
-		        // ADMIN ONLY
+		        .requestMatchers(HttpMethod.GET, "/products/**").permitAll()
 		        .requestMatchers("/products/**").hasRole("ADMIN")
+		        
+		        // ADMIN ONLY
+		        //.requestMatchers("/products/**").hasRole("ADMIN")
 		        .requestMatchers("/api/categories/**").hasRole("ADMIN")
 
 		        // Customer OR Admin

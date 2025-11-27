@@ -9,7 +9,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.shopease.backend.entity.Cart;
-import com.shopease.backend.security.AuthUtil;
 import com.shopease.backend.service.CartService;
 
 @RestController
@@ -17,17 +16,15 @@ import com.shopease.backend.service.CartService;
 public class CartController
 {
     private final CartService cartService;
-    private final AuthUtil authUtil;
 
-    public CartController(CartService cartService, AuthUtil authUtil)
+    public CartController(CartService cartService)
     {
         this.cartService = cartService;
-		this.authUtil = authUtil;
     }
 	
 	// Get cart for user
 	@GetMapping
-	public ResponseEntity<Cart> getCart(@PathVariable Long userId)
+	public ResponseEntity<Cart> getCart()
 	{
 		return ResponseEntity.ok(cartService.getCart());
 	}
@@ -38,8 +35,7 @@ public class CartController
     		@PathVariable Long productId,
     		@PathVariable int quantity)
     {
-    	String email = authUtil.getLoggedInEmail();
-    	Cart cart = cartService.addProductToCart(email, productId, quantity);
+    	Cart cart = cartService.addProductToCart(productId, quantity);
     	
     	if(cart==null)
     		return ResponseEntity.notFound().build();
