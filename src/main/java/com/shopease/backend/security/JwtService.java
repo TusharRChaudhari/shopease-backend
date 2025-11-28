@@ -24,7 +24,6 @@ public class JwtService
 	
 	@Value("${jwt.expiration}")
 	private long jwtExpirationMs;
-	
 
 	/* 	JWT needs a cryptographic key to sign the token.
 		We convert your secret key text into a valid Key object. 	 */
@@ -36,6 +35,7 @@ public class JwtService
 	public String generateToken(User user)
 	{
 		Map<String,Object> claims = new HashMap<>();
+		
 		claims.put("role", user.getRole().name());
 		
 		return Jwts.builder()
