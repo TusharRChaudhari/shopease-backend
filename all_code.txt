@@ -142,6 +142,69 @@ public class SecurityConfig
 // ---- End of SecurityConfig.java ----
 
 
+// ---- Start of AddressController.java ----
+package com.shopease.backend.controller;
+
+import java.util.List;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.shopease.backend.entity.Address;
+import com.shopease.backend.security.AuthUtil;
+import com.shopease.backend.service.AddressService;
+
+@RestController
+@RequestMapping("/address")
+public class AddressController 
+{
+    private final AddressService addressService;
+    private final AuthUtil authUtil;
+    
+	public AddressController(AddressService addressService, AuthUtil authUtil) 
+	{
+		this.addressService = addressService;
+		this.authUtil = authUtil;
+	}
+    
+    public ResponseEntity<Address> addAddress(@RequestBody Address address)
+    {
+    	String email = authUtil.getLoggedInEmail();
+    	Address saved = addressService.addAddress(email, address);
+    	return ResponseEntity.ok(saved);
+    }
+    
+    @GetMapping
+    public ResponseEntity<List<Address>> getAddresses() 
+    {
+        String email = authUtil.getLoggedInEmail();
+        return ResponseEntity.ok(addressService.getAddresses(email));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Address> updateAddress(@PathVariable Long id, @RequestBody Address address) 
+    {
+        Address updated = addressService.updateAddress(id, address);
+        return (updated == null) ? ResponseEntity.notFound().build() : ResponseEntity.ok(updated);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteAddress(@PathVariable Long id) 
+    {
+        boolean ok = addressService.deleteAddress(id);
+        return ok ? ResponseEntity.ok("Address deleted") : ResponseEntity.notFound().build();
+    }
+}
+
+// ---- End of AddressController.java ----
+
+
 // ---- Start of AuthController.java ----
 package com.shopease.backend.controller;
 
@@ -326,17 +389,16 @@ public class OrderController
 		this.authUtil = authUtil;
 	}
 	
-	@PostMapping("/place")
-	public ResponseEntity<Order> placeOrder()
+	@PostMapping("/place/{addressId}")
+	public ResponseEntity<Order> placeOrder(@PathVariable Long addressId)
 	{
 		String email = authUtil.getLoggedInEmail();
-		Order order = orderService.placeOrder(email);
+		Order order = orderService.placeOrder(email,addressId);
 		
 		if(order == null)
 			return ResponseEntity.badRequest().build();
 		
 		return ResponseEntity.ok(order);
-		
 	}
 	
 	@GetMapping
@@ -910,6 +972,10 @@ public class Order
 
     private LocalDateTime createdAt;
     
+    @ManyToOne
+    @JoinColumn(name = "address_id")
+    private Address shippingAddress;
+    
  // getters & setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -928,6 +994,11 @@ public class Order
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+	
+    public Address getShippingAddress() { return shippingAddress; }
+	public void setShippingAddress(Address shippingAddress) { this.shippingAddress = shippingAddress; }
+    
+    
 }
 
 // ---- End of Order.java ----
@@ -1888,12 +1959,14 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
+import com.shopease.backend.entity.Address;
 import com.shopease.backend.entity.Cart;
 import com.shopease.backend.entity.CartItem;
 import com.shopease.backend.entity.Order;
 import com.shopease.backend.entity.OrderItem;
 import com.shopease.backend.entity.OrderStatus;
 import com.shopease.backend.entity.User;
+import com.shopease.backend.repository.AddressRepository;
 import com.shopease.backend.repository.CartRepository;
 import com.shopease.backend.repository.OrderRepository;
 import com.shopease.backend.repository.UserRepository;
@@ -1904,23 +1977,30 @@ public class OrderService
     private final OrderRepository orderRepository;
     private final CartRepository cartRepository;
     private final UserRepository userRepository;
+    private final AddressRepository addressRepository;
+   
     
 	public OrderService(OrderRepository orderRepository,
 			CartRepository cartRepository, 
-			UserRepository userRepository) 
+			UserRepository userRepository,
+			AddressRepository addressRepository) 
 	{
 		this.orderRepository = orderRepository;
 		this.cartRepository = cartRepository;
 		this.userRepository = userRepository;
+		this.addressRepository = addressRepository;
 	}
     
-	public Order placeOrder(String email) 
+	public Order placeOrder(String email, Long addressId) 
 	{
 		// Get user
 		User user = userRepository.findByEmail(email);
 		
 		if(user==null)
 			return null;
+		
+		Address address = addressRepository.findById(addressId).orElse(null);
+		if (address == null) return null;
 		
 		Cart cart = cartRepository.findByUser(user);
 		
@@ -1952,6 +2032,7 @@ public class OrderService
 		
 		order.setItems(orderItems);
 		order.setTotalAmount(total);
+		order.setShippingAddress(address);
 		
 		// Save order and items
 		Order saveOrder = orderRepository.save(order);

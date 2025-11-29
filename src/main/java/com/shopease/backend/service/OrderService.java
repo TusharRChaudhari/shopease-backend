@@ -6,12 +6,14 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
+import com.shopease.backend.entity.Address;
 import com.shopease.backend.entity.Cart;
 import com.shopease.backend.entity.CartItem;
 import com.shopease.backend.entity.Order;
 import com.shopease.backend.entity.OrderItem;
 import com.shopease.backend.entity.OrderStatus;
 import com.shopease.backend.entity.User;
+import com.shopease.backend.repository.AddressRepository;
 import com.shopease.backend.repository.CartRepository;
 import com.shopease.backend.repository.OrderRepository;
 import com.shopease.backend.repository.UserRepository;
@@ -22,23 +24,30 @@ public class OrderService
     private final OrderRepository orderRepository;
     private final CartRepository cartRepository;
     private final UserRepository userRepository;
+    private final AddressRepository addressRepository;
+   
     
 	public OrderService(OrderRepository orderRepository,
 			CartRepository cartRepository, 
-			UserRepository userRepository) 
+			UserRepository userRepository,
+			AddressRepository addressRepository) 
 	{
 		this.orderRepository = orderRepository;
 		this.cartRepository = cartRepository;
 		this.userRepository = userRepository;
+		this.addressRepository = addressRepository;
 	}
     
-	public Order placeOrder(String email) 
+	public Order placeOrder(String email, Long addressId) 
 	{
 		// Get user
 		User user = userRepository.findByEmail(email);
 		
 		if(user==null)
 			return null;
+		
+		Address address = addressRepository.findById(addressId).orElse(null);
+		if (address == null) return null;
 		
 		Cart cart = cartRepository.findByUser(user);
 		
@@ -70,6 +79,7 @@ public class OrderService
 		
 		order.setItems(orderItems);
 		order.setTotalAmount(total);
+		order.setShippingAddress(address);
 		
 		// Save order and items
 		Order saveOrder = orderRepository.save(order);
