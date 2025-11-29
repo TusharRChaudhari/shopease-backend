@@ -43,6 +43,10 @@ public class Order
 
     private LocalDateTime createdAt;
     
+    @ManyToOne
+    @JoinColumn(name = "address_id")
+    private Address shippingAddress;
+    
  // getters & setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -61,4 +65,9 @@ public class Order
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+	
+    public Address getShippingAddress() { return shippingAddress; }
+	public void setShippingAddress(Address shippingAddress) { this.shippingAddress = shippingAddress; }
+    
+    
 }

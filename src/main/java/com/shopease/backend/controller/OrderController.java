@@ -27,17 +27,16 @@ public class OrderController
 		this.authUtil = authUtil;
 	}
 	
-	@PostMapping("/place")
-	public ResponseEntity<Order> placeOrder()
+	@PostMapping("/place/{addressId}")
+	public ResponseEntity<Order> placeOrder(@PathVariable Long addressId)
 	{
 		String email = authUtil.getLoggedInEmail();
-		Order order = orderService.placeOrder(email);
+		Order order = orderService.placeOrder(email,addressId);
 		
 		if(order == null)
 			return ResponseEntity.badRequest().build();
 		
 		return ResponseEntity.ok(order);
-		
 	}
 	
 	@GetMapping
